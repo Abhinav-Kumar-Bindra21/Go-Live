@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router";
 import { dummyUser } from "../assets/asset";
 import { AstroidIcon, HistoryIcon, LayoutDashboardIcon } from "lucide-react";
-import { SignOutButton, UserButton } from "@clerk/react";
+import { UserButton } from "@clerk/react";
 
 const Navbar = () => {
   const { isSignedIn, user } = { user: dummyUser, isSignedIn: true };
