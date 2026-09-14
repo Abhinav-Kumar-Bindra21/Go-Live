@@ -1,4 +1,4 @@
-// Dummy data & assets for frontend
+// Dummy data & assets for frontend.
 
 export const dummyUser = {
   id: "user_mock_001",
