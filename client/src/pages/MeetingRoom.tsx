@@ -1,6 +1,10 @@
 import { useNavigate, useParams } from "react-router";
 import { dummyUser, dummyMeetingDetails } from "../assets/asset";
 import { useCallback, useState } from "react";
+import VideoGrid from "../components/Meeting/VideoGrid";
+import useWebRTC from "../hooks/useWebRTC";
+import ChatPanel from "../components/Meeting/ChatPanel";
+import { useChat } from "../hooks/useChat";
 
 const MeetingRoom = () => {
   const { meetingId } = useParams();
@@ -13,6 +17,18 @@ const MeetingRoom = () => {
   const handleMeetingEnded = useCallback(() => {
     navigate("/dashboard");
   }, [navigate]);
+
+  // Initialize webRTC
+
+  const { localStream, remoteUsers, audioEnabled, videoEnabled, toggleAudio, toggleVideo, endMeeting } = useWebRTC(
+    meetingId,
+    userData,
+    handleMeetingEnded,
+  );
+
+  // initialize chat
+
+  const { message, sendMessage, unreadCount, isChatOpen, toggleChat } = useChat(meetingId, userData);
 
   const isHost = true;
 
@@ -38,7 +54,23 @@ const MeetingRoom = () => {
       <div className="flex-1 flex overflow-hidden relative">
         {/* video grid center */}
 
+        <VideoGrid
+          localStream={localStream}
+          localUser={userData}
+          remoteUsers={remoteUsers}
+          audioEnabled={audioEnabled}
+          videoEnabled={videoEnabled}
+        />
+
         {/* In Meeting chat Drawer */}
+
+        <ChatPanel
+          isOpen={isChatOpen}
+          onClose={toggleChat}
+          message={message}
+          onSendMessage={sendMessage}
+          currentUser={userData}
+        />
 
         {/* Participants Drawer */}
 

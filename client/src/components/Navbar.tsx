@@ -5,7 +5,6 @@ import { UserButton } from "@clerk/react";
 
 const Navbar = () => {
   const { isSignedIn, user } = { user: dummyUser, isSignedIn: true };
-  console.log(user);
 
   const location = useLocation();
 
