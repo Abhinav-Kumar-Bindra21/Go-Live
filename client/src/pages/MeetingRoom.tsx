@@ -6,6 +6,7 @@ import useWebRTC from "../hooks/useWebRTC";
 import ChatPanel from "../components/Meeting/ChatPanel";
 import { useChat } from "../hooks/useChat";
 import ParticipantList from "../components/Meeting/ParticipantList";
+import ControlBar from "../components/Meeting/ControlBar";
 
 const MeetingRoom = () => {
   const { meetingId } = useParams();
@@ -13,7 +14,7 @@ const MeetingRoom = () => {
 
   const userData = dummyUser;
 
-  const [isParticipantsOpen, setIsParticipantsOpen] = useState(true);
+  const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
 
   const handleMeetingEnded = useCallback(() => {
     navigate("/dashboard");
@@ -84,9 +85,26 @@ const MeetingRoom = () => {
           remoteUsers={remoteUsers}
           meetingHostId={dummyUser.id}
         />
-
-        {/* Bottom Floating Control BAr */}
       </div>
+
+      {/* Bottom Floating Control Bar */}
+
+      <ControlBar
+        roomId={meetingId || dummyMeetingDetails.meetingId}
+        audioEnabled={audioEnabled}
+        videoEnabled={videoEnabled}
+        onToggleAudio={toggleAudio}
+        onToggleVideo={toggleVideo}
+        onToggleChat={toggleChat}
+        onToggleParticipants={() => setIsParticipantsOpen((prev) => !prev)}
+        isChatOpen={isChatOpen}
+        isParticipantsOpen={isParticipantsOpen}
+        unreadCount={unreadCount}
+        participantCount={1 + remoteUsers.length}
+        isHost={isHost}
+        onLeave={handleLeave}
+        onEndMeeting={handleEndMeeting}
+      />
     </div>
   );
 };
