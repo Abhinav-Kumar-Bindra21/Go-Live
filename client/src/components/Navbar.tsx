@@ -1,15 +1,15 @@
 import { Link, useLocation } from "react-router";
 import { dummyUser } from "../assets/asset";
 import { AstroidIcon, HistoryIcon, LayoutDashboardIcon } from "lucide-react";
-import { UserButton } from "@clerk/react";
+import { UserButton, useUser } from "@clerk/react";
 
 const Navbar = () => {
-  const { isSignedIn, user } = { user: dummyUser, isSignedIn: true };
+  const { isSignedIn, user } = useUser();
 
   const location = useLocation();
 
   const userName =
-    user?.fullname || user?.firstName || user?.primaryEmailAddress?.emailAddress?.split("@")[0] || "user";
+    user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress?.split("@")[0] || "user";
   return (
     <header className="w-full max-w-305 mx-auto bg-white/90 backdrop-blur-2xl xl:rounded-b-xl sticky top-0 z-40 px-6 py-4 flex items-center justify-between border border-slate-200">
       {/* Brand logo and navigation link */}
