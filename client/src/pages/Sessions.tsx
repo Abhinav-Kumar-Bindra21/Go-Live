@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router";
 import { dummySessions } from "../assets/asset";
 import EmptySession from "../components/sessions/EmptySession";
 import SessionsCard from "../components/sessions/SessionsCard";
+import SessionDetailModel from "../components/sessions/SessionDetailModel";
 
 const Sessions = () => {
   const [sessions] = useState(dummySessions);
@@ -12,7 +13,7 @@ const Sessions = () => {
   const navigate = useNavigate();
 
   const openSessionsDetails = (sessionId) => {
-    const session = sessionId.find((s) => s.id === sessionId || s.meetingId === sessionId);
+    const session = sessions.find((s) => s.id === sessionId || s.meetingId === sessionId);
 
     if (session) {
       setSelectedSession(session);
@@ -57,7 +58,7 @@ const Sessions = () => {
 
       {/* Sessions Detail Model */}
 
-      <p>Sessions detail model</p>
+      <SessionDetailModel session={selectedSession} onClose={() => setSelectedSession(null)} />
     </main>
   );
 };
