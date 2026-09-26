@@ -8,9 +8,6 @@ import { handleClerkWebhook } from "./controllers/webhookController";
 
 const app = express();
 
-// Connect to Neon & Initialize Tables
-initDb();
-
 const PORT = process.env.PORT || 3000;
 
 const allowedOrigins = process.env.ORIGINS?.split(",");
@@ -21,6 +18,18 @@ app.use("/api/clerk", express.raw({ type: "application/json" }), handleClerkWebh
 app.use(express.json());
 app.use(clerkMiddleware());
 
-app.listen(PORT, () => {
-  console.log("Server Started");
-});
+const startServer = async () => {
+  try {
+    // Connect to Neon & Initialize Tables
+    await initDb();
+
+    app.listen(PORT, () => {
+      console.log("Server Started");
+    });
+  } catch (error: any) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
+};
+
+startServer();
