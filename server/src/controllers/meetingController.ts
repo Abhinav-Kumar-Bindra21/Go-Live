@@ -1,8 +1,5 @@
 import { Request, Response } from "express";
 import { sql } from "../config/db";
-import { error } from "node:console";
-import { title } from "node:process";
-import { hostname } from "node:os";
 
 const generateMeetingId = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz";
