@@ -1,32 +1,62 @@
 import { sql } from "./config/db";
 
 // Socket.IO Room State: roomId -> Map<socketId,participantObject>
-const rooms = new Map();
+const rooms = new Map<string, Map<string, Participant>>();
 
-export function setupSocketIO(io) {
-  io.on("connection", (socket) => {
-    let currentRoomId = null;
-    let currentUser = null;
+interface User {
+  id?: string;
+  name?: string;
+}
+
+interface Participant {
+  socketId: string;
+  userId?: string;
+  userName: string;
+  isHost: boolean | undefined;
+  audioEnabled: boolean;
+  videoEnabled: boolean;
+}
+
+interface JoinRoomData {
+  roomId: string;
+  user?: User;
+  audioEnabled?: boolean;
+  videoEnabled?: boolean;
+}
+
+export function setupSocketIO(io: any) {
+  io.on("connection", (socket: any) => {
+    let currentRoomId: string | null = null;
+    let currentUser: Participant | null = null;
 
     // User joins a meeting room
-    socket.io("join-room", async ({ roomId, user, audioEnabled = true, vidoEnabled = true }) => {
+    socket.on("join-room", async ({ roomId, user, audioEnabled = true, videoEnabled = true }: JoinRoomData) => {
       try {
         // Verify meeting status from DB
-        const meetings = await sql`SELECT * FROM meetings WHERE meeting_id=${roomId}`;
+        const meetings = await sql`
+            SELECT *
+            FROM meetings
+            WHERE meeting_id = ${roomId}
+          `;
 
         if (meetings.length === 0) {
-          socket.emit("meeting-ended", { message: "Meeting not found" });
+          socket.emit("meeting-ended", {
+            message: "Meeting not found",
+          });
           return;
         }
 
         const meeting = meetings[0];
 
         if (meeting.status === "ended") {
-          socket.emit("meeting-ended", { message: "This meeting has already ended" });
+          socket.emit("meeting-ended", {
+            message: "This meeting has already ended",
+          });
           return;
         }
 
         currentRoomId = roomId;
+
         const isHost = meeting.host_id && user?.id && meeting.host_id.toString() === user.id.toString();
 
         currentUser = {
@@ -35,24 +65,29 @@ export function setupSocketIO(io) {
           userName: user?.name || "Anonymous",
           isHost,
           audioEnabled,
-          vidoEnabled,
+          videoEnabled,
         };
 
         if (!rooms.has(roomId)) {
           rooms.set(roomId, new Map());
         }
 
-        const roomParticipants = rooms.get(roomId);
+        const roomParticipants = rooms.get(roomId)!;
 
         // Fetch host plan to enforce participant limits (10 for free,100 for premium)
-        const hosts = await sql`SELECT plan FROM users Where id=${meeting.host_id}`;
+        const hosts = await sql`
+            SELECT plan
+            FROM users
+            WHERE id = ${meeting.host_id}
+          `;
+
         const hostPlan = hosts[0]?.plan || "free";
 
         const maxParticipants = hostPlan === "premium" ? 100 : 10;
 
         if (roomParticipants.size >= maxParticipants) {
           socket.emit("meeting-ended", {
-            message: `Meeting capacity limit reached (max ${maxParticipants} participants for ${hostPlan.toUpperCase()}plan). Host must upgrade to Premium for up to 100 participants!`,
+            message: `Meeting capacity limit reached (max ${maxParticipants} participants for ${hostPlan.toUpperCase()} plan). Host must upgrade to Premium for up to 100 participants!`,
           });
 
           return;
@@ -68,114 +103,206 @@ export function setupSocketIO(io) {
 
         // Save participant into DB if not already present
         const userId = user?.id || null;
+
         const existingParticipant = await sql`
-        SELECT if FROM meetng_participants WHERE meeting_id = ${meeting.id} 
-        AND ((${userId}::text IS NOT NULL AND user_id=${userId}) OR name = ${currentUser.userName})`;
+            SELECT id
+            FROM meeting_participants
+            WHERE meeting_id = ${meeting.id}
+            AND (
+              (
+                ${userId}::text IS NOT NULL
+                AND user_id = ${userId}
+              )
+              OR name = ${currentUser.userName}
+            )
+          `;
 
         if (existingParticipant.length === 0) {
-          await sql`INSERT INTO meeting_participants (meeting_id,user_id,name,joined_at) 
-          VALUES (${meeting.id},${userId},${currentUser.userName},NOW())`;
+          await sql`
+              INSERT INTO meeting_participants (
+                meeting_id,
+                user_id,
+                name,
+                joined_at
+              )
+              VALUES (
+                ${meeting.id},
+                ${userId},
+                ${currentUser.userName},
+                NOW()
+              )
+            `;
         }
 
         // send list of  existing users to the newComer
-        socket.emit("all-joined", currentUser);
+        socket.emit("all-joined", existingUsers);
 
         // Notify  everyone else in the room
         socket.to(roomId).emit("user-joined", currentUser);
       } catch (error) {
         console.error("Error joining room in socket", error);
-        socket.emit("meeting-ended", { message: "Failed to join room" });
+
+        socket.emit("meeting-ended", {
+          message: "Failed to join room",
+        });
       }
     });
 
     // WebRTC Signaling: Offer
     // send the information needed to start the connection
-    socket.on("offer", ({ targetSocketId, callerSocketId, sdp }) => {
-      io.to(targetSocketId).emit("offer", {
-        callerSocketId,
-        sdp,
-        callerUser: currentUser,
-      });
-    });
+    socket.on(
+      "offer",
+      ({ targetSocketId, callerSocketId, sdp }: { targetSocketId: string; callerSocketId: string; sdp: any }) => {
+        io.to(targetSocketId).emit("offer", {
+          callerSocketId,
+          sdp,
+          callerUser: currentUser,
+        });
+      },
+    );
 
     // WebRTC Signaling: Answer
     // accept the offer request and process the connection
-    socket.on("answer", ({ targetSocketId, responderSocketId, sdp }) => {
-      io.to(targetSocketId).emit("answer", { responderSocketId, sdp });
-    });
+    socket.on(
+      "answer",
+      ({ targetSocketId, responderSocketId, sdp }: { targetSocketId: string; responderSocketId: string; sdp: any }) => {
+        io.to(targetSocketId).emit("answer", {
+          responderSocketId,
+          sdp,
+        });
+      },
+    );
 
     // WebRTC Signaling: ICE Candidate
     // passes the connection details from one user to the other so WebRTC can figure out how to connect them directly.
-    socket.on("ice-candidate", ({ targetSocketId, senderSocketId, candidate }) => {
-      io.to(targetSocketId).emit("ice-candidate", {
+    socket.on(
+      "ice-candidate",
+      ({
+        targetSocketId,
         senderSocketId,
         candidate,
-      });
-    });
+      }: {
+        targetSocketId: string;
+        senderSocketId: string;
+        candidate: any;
+      }) => {
+        io.to(targetSocketId).emit("ice-candidate", {
+          senderSocketId,
+          candidate,
+        });
+      },
+    );
 
     // Audio toggle event
-    socket.on("toggle-audio", ({ roomId, audioEnabled }) => {
-      if (rooms.has(roomId) && rooms.get(rooms.get(roomId).has(socket.id))) {
-        rooms.get(roomId).get(socket.id).audioEnabled = audioEnabled;
+    socket.on("toggle-audio", ({ roomId, audioEnabled }: { roomId: string; audioEnabled: boolean }) => {
+      if (rooms.has(roomId)) {
+        const roomParticipants = rooms.get(roomId)!;
+
+        if (roomParticipants.has(socket.id)) {
+          roomParticipants.get(socket.id)!.audioEnabled = audioEnabled;
+        }
       }
 
-      socket.to(roomId).emit("user-toogle-audio", {
+      socket.to(roomId).emit("user-toggle-audio", {
         socketId: socket.id,
         audioEnabled,
       });
     });
 
     // Video toggle event
-    socket.on("toggle-video", ({ roomId, videoEnabled }) => {
-      if (rooms.has(roomId) && rooms.get(rooms.get(roomId).has(socket.id))) {
-        rooms.get(roomId).get(socket.id).videoEnabled = videoEnabled;
+    socket.on("toggle-video", ({ roomId, videoEnabled }: { roomId: string; videoEnabled: boolean }) => {
+      if (rooms.has(roomId)) {
+        const roomParticipants = rooms.get(roomId)!;
+
+        if (roomParticipants.has(socket.id)) {
+          roomParticipants.get(socket.id)!.videoEnabled = videoEnabled;
+        }
       }
 
-      socket.to(roomId).emit("user-toogle-video", {
+      socket.to(roomId).emit("user-toggle-video", {
         socketId: socket.id,
         videoEnabled,
       });
     });
 
     // Chat message event -> presist to DB & broadcast
-    socket.on("send-message", async ({ roomId, message }) => {
-      try {
-        const meetings = await sql`SELECT id,status FROM meetings WHERE meeting_id = ${roomId}`;
+    socket.on(
+      "send-message",
+      async ({
+        roomId,
+        message,
+      }: {
+        roomId: string;
+        message: {
+          senderId?: string;
+          senderName?: string;
+          text: string;
+        };
+      }) => {
+        try {
+          const meetings = await sql`
+            SELECT id, status
+            FROM meetings
+            WHERE meeting_id = ${roomId}
+          `;
 
-        if (meetings.length > 0 && meetings[0].status !== "ended") {
-          const meetingId = meetings[0].id;
-          const senderId = message.senderId || null;
+          if (meetings.length > 0 && meetings[0].status !== "ended") {
+            const meetingId = meetings[0].id;
+            const senderId = message.senderId || null;
 
-          await sql`INSERT INTO meeting_messages (meeting_id,sender_id,sender_name,text,timestamp) 
-          VAlUES (${meetingId},${senderId},${message.senderName || "Anonymos"}, ${message.text},NOW())`;
+            await sql`
+              INSERT INTO meeting_messages (
+                meeting_id,
+                sender_id,
+                sender_name,
+                text,
+                timestamp
+              )
+              VALUES (
+                ${meetingId},
+                ${senderId},
+                ${message.senderName || "Anonymous"},
+                ${message.text},
+                NOW()
+              )
+            `;
 
-          io.in(roomId).emit("receive-message", {
-            ...message,
-            senderSocketId: socket.id,
-          });
+            io.in(roomId).emit("receive-message", {
+              ...message,
+              senderSocketId: socket.id,
+            });
+          }
+        } catch (error) {
+          console.error("Error saving chat message to DB:", error);
         }
-      } catch (error) {
-        console.error("Error saving chat message to DB:", error);
-      }
-    });
+      },
+    );
 
     // Host explicitly  ends meeting for all via End Meeting button
-
-    socket.on("end-meeting", async ({ roomId }) => {
+    socket.on("end-meeting", async ({ roomId }: { roomId: string }) => {
       try {
-        await sql`UPDATE meetings SET status = "ended" , ended_at = NOW() 
-        WHERE meeting_id = ${roomId}`;
+        await sql`
+            UPDATE meetings
+            SET status = 'ended',
+                ended_at = NOW()
+            WHERE meeting_id = ${roomId}
+          `;
+
         rooms.delete(roomId);
+
+        io.to(roomId).emit("meeting-ended", {
+          message: "Meeting has ended",
+        });
       } catch (error) {
         console.error("Error ending meeting:", error);
       }
     });
 
     // Handle Disconnect (Reloading window,network drop, or closing tab)
-
     socket.on("disconnect", () => {
       if (currentRoomId && rooms.has(currentRoomId)) {
-        const roomParticipants = rooms.get(currentRoomId);
+        const roomParticipants = rooms.get(currentRoomId)!;
+
         roomParticipants.delete(socket.id);
 
         if (roomParticipants.size === 0) {

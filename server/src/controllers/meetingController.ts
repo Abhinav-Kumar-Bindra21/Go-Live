@@ -22,7 +22,7 @@ export const createMeeting = async (req: Request, res: Response) => {
     // check meeting limit per calendar month
     if (userPlan === "free") {
       const monthlyCountResult =
-        await sql`SELECT COUNT(*) as count FROM meetings WHERE host_id = ${userId} AND created_at >= date_trunc("month", NOW())`;
+        await sql`SELECT COUNT(*) as count FROM meetings WHERE host_id = ${userId} AND created_at >= date_trunc('month', NOW())`;
 
       const monthyCount = parseInt(monthlyCountResult[0]?.count || "0");
 
@@ -47,7 +47,7 @@ export const createMeeting = async (req: Request, res: Response) => {
     }
 
     const [meeting] =
-      await sql`INSERT INTO meetings(meeting_id,title,host_id,status) VALUES (${meetingId},${title || "Instant Meeting"},${userId} , active) RETURNING id,meeting_id,title,host_id,status,created_at`;
+      await sql`INSERT INTO meetings(meeting_id,title,host_id,status) VALUES (${meetingId},${title || "Instant Meeting"},${userId} ,  ${"active"}) RETURNING id,meeting_id,title,host_id,status,created_at`;
 
     const hostName = users[0]?.name || "Host";
 
@@ -243,7 +243,7 @@ export const getMeetingStats = async (req: Request, res: Response) => {
     const plan = users[0]?.plan || "free";
 
     const monthlyCountResult = await sql`
-    SELECT COUNT(*) as count FROM meetings WHERE host_id =${userId} AND created_at >=date_trunc("month",NOW())`;
+    SELECT COUNT(*) as count FROM meetings WHERE host_id =${userId} AND created_at >=date_trunc('month',NOW())`;
 
     const monthyCount = parseInt(monthlyCountResult[0]?.count || "0", 10);
     const monthyLimit = plan === "premium" ? null : 30;

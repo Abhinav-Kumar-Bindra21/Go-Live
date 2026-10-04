@@ -16,7 +16,7 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 const allowedOrigins = process.env.ORIGINS?.split(",");
-app.use(cors({ origin: "", credentials: true }));
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(cookieParser());
 
 app.use("/api/clerk", express.raw({ type: "application/json" }), handleClerkWebhook);
